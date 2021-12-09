@@ -112,11 +112,21 @@ int main(int argc, char* argv[]) {
 			struct icmp *icmpHeader = (struct icmp *) (replyBuffer + reply->ip_hl*4);  // we "extract" the ICMP header from the IP packet
 			
 			if(icmpHeader->icmp_type != ICMP_ECHOREPLY && 
-			  !(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED && icmpHeader->icmp_code == ICMP_EXC_TTL)) continue;
+			   !(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED && icmpHeader->icmp_code == ICMP_EXC_TTL)){
+			     continue;
+			}
 			// If the packet's type is neither echo reply, nor time exceeded because of TTL depletion
-			
-			if(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED)
-			icmpHeader = (struct icmp *) (icmpHeader->icmp_data + ((struct ip *) (icmpHeader->icmp_data))->ip_hl*4);
+			 printf("source: %s\t", inet_ntoa(source));
+			 printf("reply from: %s\t", inet_ntoa(from.sin_addr));
+			 printf("Type: %d\t", icmpHeader->icmp_type);
+			 printf("Code: %d\n", icmpHeader->icmp_code);
+			if(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED){
+			  
+			   //printf("----------------------\n");
+			   //printf("Seq : %d\n",icmpHeader->icmp_seq);
+			   //printf("Iden : %d\n",icmpHeader->icmp_id);
+			  icmpHeader = (struct icmp *) (icmpHeader->icmp_data + ((struct ip *) (icmpHeader->icmp_data))->ip_hl*4);
+			}
 			// if we got time_exceeded packet, shift icmpHeader to the copy of our request
 			
 			if(ntohs(icmpHeader->icmp_id) != pid || sequence - ntohs(icmpHeader->icmp_seq) >= REQUESTS_PER_TTL) continue;
@@ -124,13 +134,7 @@ int main(int argc, char* argv[]) {
 			
 			;
 			
-			printf("source: %s\t", inet_ntoa(source));//LHJ
-			printf("reply from: %s\t", inet_ntoa(from.sin_addr));//LHJ
-			printf("Type: %d\t", icmpHeader->icmp_type);
-			printf("Code: %d\n", icmpHeader->icmp_code);
-			//printf("----------------------\n");
-			//printf("Seq : %d\n",icmpHeader->icmp_seq);
-			//printf("Iden : %d\n",icmpHeader->icmp_id);
+		
 		    
 			//printf("count: %d ",times);
 			elapsedTime += timeDifference(sendTime[(ntohs(icmpHeader->icmp_seq)-1) % REQUESTS_PER_TTL], current);
