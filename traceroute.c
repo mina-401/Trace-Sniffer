@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
 		repliedPacketsCnt = 0;
 		elapsedTime = 0.0;
 		ipsThatReplied = createIpList();
-		//int times=0;
+	       
 
 		for(i=1; i<=REQUESTS_PER_TTL; i++) {
 			Setsockopt(sockId, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));  // set TTL of IP packet that is being sent
@@ -89,6 +89,8 @@ int main(int argc, char* argv[]) {
 			
 			gettimeofday(&sendTime[(sequence-1) % REQUESTS_PER_TTL], NULL);
 			Sendto(sockId, icmpRequestBuffer, ICMP_HEADER_LEN, 0, &remoteAddr, sizeof(remoteAddr));
+			
+			//printf("source ip:%d \n",icmpRequest->icmp_id);
 		}
 	
 		gettimeofday(&begin, NULL);  // get time after sending the packets
@@ -106,6 +108,7 @@ int main(int argc, char* argv[]) {
 			
 			struct ip *reply = (struct ip *) replyBuffer;
 			struct in_addr source=reply->ip_dst;
+			//	struct in_addr
 			
 			if(reply->ip_p != IPPROTO_ICMP) continue;  // Check packet's protocol (if it's ICMP)
 			
@@ -116,10 +119,12 @@ int main(int argc, char* argv[]) {
 			     continue;
 			}
 			// If the packet's type is neither echo reply, nor time exceeded because of TTL depletion
-			 printf("source: %s\t", inet_ntoa(source));
+			 printf("source Type:%d ",icmpRequest->icmp_type);
+			 printf("source Code:%d ",icmpRequest->icmp_code);
+		 	 printf("source Ip: %s\t", inet_ntoa(source));
 			 printf("reply from: %s\t", inet_ntoa(from.sin_addr));
-			 printf("Type: %d\t", icmpHeader->icmp_type);
-			 printf("Code: %d\n", icmpHeader->icmp_code);
+			 printf("reply Type: %d\t", icmpHeader->icmp_type);
+			 printf("reply Code: %d\n", icmpHeader->icmp_code);
 			if(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED){
 			  
 			   //printf("----------------------\n");
