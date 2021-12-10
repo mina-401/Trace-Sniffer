@@ -1,21 +1,21 @@
-/* 
-	Author: Wojciech Kuprianowicz
+/*
+    Author: Wojciech Kuprianowicz
 
-	Author:
-	Wojciech Kuprianowicz 
+    Author:
+    Wojciech Kuprianowicz
 
-	License:
-	This source code can be used freely by anyone and for any purpose. I do not take any responsibility for any damage caused through use of this software.
+    License:
+    This source code can be used freely by anyone and for any purpose. I do not take any responsibility for any damage caused through use of this software.
 
-	Application name:
-	Traceroute
+    Application name:
+    Traceroute
 
-	Current Version:
-	1.0 (2012-03-24) (checked 2013-01-12)
+    Current Version:
+    1.0 (2012-03-24) (checked 2013-01-12)
 
-	Description:
-	Traceroute in C using raw sockets.
-*/ 
+    Description:
+    Traceroute in C using raw sockets.
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
     Inet_pton(AF_INET, argv[1], &remoteAddr.sin_addr);  // An error message is displayed if the given IP address is invalid
               
     int pid = getpid();  // get process id for later identification
-    
+    int IPTTL=0;
     int sockId = Socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);  // acquire socket, store socket's id
     struct timeval begin, current;
     begin.tv_sec = 0;
@@ -75,91 +75,108 @@ int main(int argc, char* argv[]) {
     ip_list *ipsThatReplied;  // list of IPs that replied to echo request
     
     for(ttl=1; ttl<=TTL_LIMIT; ttl++) {
-		repliedPacketsCnt = 0;
-		elapsedTime = 0.0;
-		ipsThatReplied = createIpList();
-	       
+        repliedPacketsCnt = 0;
+        elapsedTime = 0.0;
+        ipsThatReplied = createIpList();
+          
 
-		for(i=1; i<=REQUESTS_PER_TTL; i++) {
-			Setsockopt(sockId, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));  // set TTL of IP packet that is being sent
-			icmpRequest->icmp_seq = htons(++sequence);  // set sequence number, for later identification
-			
-			icmpRequest->icmp_cksum = 0;
-			icmpRequest->icmp_cksum = in_cksum((uint16_t*) icmpRequest, ICMP_HEADER_LEN, 0);
-			
-			gettimeofday(&sendTime[(sequence-1) % REQUESTS_PER_TTL], NULL);
-			Sendto(sockId, icmpRequestBuffer, ICMP_HEADER_LEN, 0, &remoteAddr, sizeof(remoteAddr));
-			
-			//printf("source ip:%d \n",icmpRequest->icmp_id);
-		}
-	
-		gettimeofday(&begin, NULL);  // get time after sending the packets
-	
-		while(repliedPacketsCnt < REQUESTS_PER_TTL) {
-		  	struct sockaddr_in from; //LHJ
-			socklen_t sl; //LHJ
-			sl=sizeof(from);
-			int RecvRetVal = Recvfrom(sockId, replyBuffer, BUFFER_SIZE, 0, (struct sockaddr_in*)&from, &sl);  // wait 1 ms for a packet (at most) & LHJ
-			gettimeofday(&current, NULL);			
-			if(RecvRetVal < 0) {
-				if(timeDifference(begin, current) > TIMEOUT) break;
-				continue;
-			}
-			
-			struct ip *reply = (struct ip *) replyBuffer;
-			struct in_addr source=reply->ip_dst;
-			//	struct in_addr
-			
-			if(reply->ip_p != IPPROTO_ICMP) continue;  // Check packet's protocol (if it's ICMP)
-			
-			struct icmp *icmpHeader = (struct icmp *) (replyBuffer + reply->ip_hl*4);  // we "extract" the ICMP header from the IP packet
-			
-			if(icmpHeader->icmp_type != ICMP_ECHOREPLY && 
-			   !(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED && icmpHeader->icmp_code == ICMP_EXC_TTL)){
-			     continue;
-			}
-			// If the packet's type is neither echo reply, nor time exceeded because of TTL depletion
-			 printf("source Type:%d ",icmpRequest->icmp_type);
-			 printf("source Code:%d ",icmpRequest->icmp_code);
-		 	 printf("source Ip: %s\t", inet_ntoa(source));
-			 printf("reply from: %s\t", inet_ntoa(from.sin_addr));
-			 printf("reply Type: %d\t", icmpHeader->icmp_type);
-			 printf("reply Code: %d\n", icmpHeader->icmp_code);
-			if(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED){
-			  
-			   //printf("----------------------\n");
-			   //printf("Seq : %d\n",icmpHeader->icmp_seq);
-			   //printf("Iden : %d\n",icmpHeader->icmp_id);
-			  icmpHeader = (struct icmp *) (icmpHeader->icmp_data + ((struct ip *) (icmpHeader->icmp_data))->ip_hl*4);
-			}
-			// if we got time_exceeded packet, shift icmpHeader to the copy of our request
-			
-			if(ntohs(icmpHeader->icmp_id) != pid || sequence - ntohs(icmpHeader->icmp_seq) >= REQUESTS_PER_TTL) continue;
-			// is icmp_id equal to our pid and it's one of the latest (three) packets sent?
-			
-			;
-			
-		
-		    
-			//printf("count: %d ",times);
-			elapsedTime += timeDifference(sendTime[(ntohs(icmpHeader->icmp_seq)-1) % REQUESTS_PER_TTL], current);
-			insert(ipsThatReplied, reply->ip_src);
-			repliedPacketsCnt++;
-			
-			if(icmpHeader->icmp_type == ICMP_ECHOREPLY) stop = 1;
-		}
-	
-		// Output
-		
-		printf("\nttl:%2d\t", ttl);
-		if(repliedPacketsCnt == 0) { printf("*\n"); printf("----------------------\n");  continue; }
-		printIpList(ipsThatReplied);
-		destroyIpList(ipsThatReplied);
-			
-		if(repliedPacketsCnt == REQUESTS_PER_TTL) printf("%.1f ms\n", elapsedTime / repliedPacketsCnt);
-		else printf("\t???\n");
-		printf("----------------------\n");
-		if(stop == 1) break;
+        for(i=1; i<=REQUESTS_PER_TTL; i++) {
+           
+            Setsockopt(sockId, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));  // set TTL of IP packet that is being sent
+            icmpRequest->icmp_seq = htons(++sequence);  // set sequence number, for later identification
+           
+            icmpRequest->icmp_cksum = 0;
+            icmpRequest->icmp_cksum = in_cksum((uint16_t*) icmpRequest, ICMP_HEADER_LEN, 0);
+           
+            gettimeofday(&sendTime[(sequence-1) % REQUESTS_PER_TTL], NULL);
+            Sendto(sockId, icmpRequestBuffer, ICMP_HEADER_LEN, 0, &remoteAddr, sizeof(remoteAddr));
+           
+            //printf("source ip:%d \n",icmpRequest->icmp_id);
+        }
+    
+        gettimeofday(&begin, NULL);  // get time after sending the packets
+    
+        while(repliedPacketsCnt < REQUESTS_PER_TTL) {
+              struct sockaddr_in from; //LHJ
+            socklen_t sl; //LHJ
+            sl=sizeof(from);
+            int RecvRetVal = Recvfrom(sockId, replyBuffer, BUFFER_SIZE, 0, (struct sockaddr_in*)&from, &sl);  // wait 1 ms for a packet (at most) & LHJ
+            gettimeofday(&current, NULL);           
+            if(RecvRetVal < 0) {
+                if(timeDifference(begin, current) > TIMEOUT) break;
+                continue;
+            }
+           
+            struct ip *reply = (struct ip *) replyBuffer;
+            struct in_addr source=reply->ip_dst;
+            //    struct in_addr
+           
+            if(reply->ip_p != IPPROTO_ICMP) continue;  // Check packet's protocol (if it's ICMP)
+           
+            struct icmp *icmpHeader = (struct icmp *) (replyBuffer + reply->ip_hl*4);  // we "extract" the ICMP header from the IP packet
+            // printf("Seq : %d\n",icmpHeader->icmp_seq);
+            if(icmpHeader->icmp_type != ICMP_ECHOREPLY &&
+               !(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED && icmpHeader->icmp_code == ICMP_EXC_TTL)){
+                 continue;
+            }
+            // If the packet's type is neither echo reply, nor time exceeded because of TTL depletion
+             printf("\n-Request\n");
+             printf(" [IP Header]");
+             printf("\t\t[ICMP Header]\n");
+             printf(" source Ip: %s\t", inet_ntoa(source));
+             printf("Type:%d \n",icmpRequest->icmp_type);
+             printf(" Dest IP: %s\t", argv[1]);
+             printf("Code:%d\n",icmpRequest->icmp_code);
+             printf("\n-Reply\n");
+             printf(" [IP Header]");
+             printf("\t\t[ICMP Header]\n");
+             printf(" source Ip: %s\t", inet_ntoa(from.sin_addr));
+             printf("Type: %d\n", icmpHeader->icmp_type);
+             printf(" Dest Ip: %s\t", inet_ntoa(source));
+             printf("Code: %d\n\n", icmpHeader->icmp_code);
+             printf("--------------------------------------------------\n");
+           
+            if(icmpHeader->icmp_type == ICMP_TIME_EXCEEDED){
+             
+               //printf("----------------------\n");
+             
+               //printf("Iden : %d\n",icmpHeader->icmp_id);
+              icmpHeader = (struct icmp *) (icmpHeader->icmp_data + ((struct ip *) (icmpHeader->icmp_data))->ip_hl*4);
+            }
+            // if we got time_exceeded packet, shift icmpHeader to the copy of our request
+           
+            if(ntohs(icmpHeader->icmp_id) != pid || sequence - ntohs(icmpHeader->icmp_seq) >= REQUESTS_PER_TTL) continue;
+            // is icmp_id equal to our pid and it's one of the latest (three) packets sent?
+           
+            ;
+           
+       
+           
+            //printf("count: %d ",times);
+            elapsedTime += timeDifference(sendTime[(ntohs(icmpHeader->icmp_seq)-1) % REQUESTS_PER_TTL], current);
+            insert(ipsThatReplied, reply->ip_src);
+            repliedPacketsCnt++;
+           
+            if(icmpHeader->icmp_type == ICMP_ECHOREPLY) {stop = 1;}
+        }
+    
+        // Output
+       
+       
+        if(repliedPacketsCnt == 0) {
+        printf("*\n");printf("ttl:%2d\n", ttl); printf("----------------------\n");
+        continue;
+        }
+        printIpList(ipsThatReplied);
+        destroyIpList(ipsThatReplied);
+           
+        if(repliedPacketsCnt == REQUESTS_PER_TTL) {
+        printf("%.1f ms\t", elapsedTime / repliedPacketsCnt);
+        printf("ttl:%2d\n", ttl); }
+       
+        else printf("\t???\n");
+           printf("--------------------------------------------------\n");
+        if(stop == 1) break;
     }
     return 0;
-}
+} 
